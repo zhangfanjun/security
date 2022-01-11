@@ -1,19 +1,16 @@
 package com.zhang.security.config;
 
-import org.springframework.boot.autoconfigure.security.SecurityProperties;
-import org.springframework.context.annotation.Bean;
+import com.zhang.security.service.MyAccessDeniedHandler;
+import com.zhang.security.service.MyAuthenticationEntryPoint;
+import com.zhang.security.service.MySecurityConfigurerAdapter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.factory.PasswordEncoderFactories;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.filter.CorsFilter;
 
 /**
  * @description: spring鉴权的配置
@@ -23,34 +20,45 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 @EnableWebSecurity
 @Configuration
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
-
-
-    @Override
-    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        super.configure(auth);
-    }
-
-    @Override
-    protected AuthenticationManager authenticationManager() throws Exception {
-        return super.authenticationManager();
-    }
-
-    @Bean
-    @Override
-    protected UserDetailsService userDetailsService() {
-//        UserDetails user = User.withDefaultPasswordEncoder().username("zhang").password("123").roles("manager").build();
-        PasswordEncoder passwordEncoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
-        UserDetails user = User.withUsername("zhang").password(passwordEncoder.encode("123")).roles("manager").build();
-        return new InMemoryUserDetailsManager(user);
-//        return super.userDetailsService();
-    }
+    /**
+     * 由MyCorsFilter生成bean
+     */
+    @Autowired
+    private CorsFilter corsFilter;
+    @Autowired
+    private MyAccessDeniedHandler myAccessDeniedHandler;
+    @Autowired
+    private MyAuthenticationEntryPoint myAuthenticationEntryPoint;
+    @Autowired
+    private MySecurityConfigurerAdapter mySecurityConfigurerAdapter;
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
-        http.authorizeRequests()
-                .antMatchers("/","/home").permitAll().anyRequest().authenticated()
-                .and().formLogin().loginPage("/login").permitAll()
-                .and().logout().permitAll();
-//        super.configure(http);
+        http
+                .formLogin().loginPage("/login").permitAll()
+                .and()
+                .logout().permitAll()
+                .and()
+                .cors().disable().addFilterBefore(corsFilter, UsernamePasswordAuthenticationFilter.class)
+                .exceptionHandling()
+                .accessDeniedHandler(myAccessDeniedHandler)
+                .authenticationEntryPoint(myAuthenticationEntryPoint)
+                .and()
+                .csrf()
+                .and()
+                .headers().frameOptions().sameOrigin()
+                .and()
+                //不启用spring security的session共享
+                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                .and()
+                //配置接口的权限
+                .authorizeRequests()
+                .antMatchers("/", "/home").permitAll()
+                .antMatchers("my/login").permitAll()
+                //这里不采用role的方式，因为user的保存是权限，而不是角色，spring中可以配置用户的角色
+                .antMatchers("my/admin").hasAuthority("admin")
+                .anyRequest().authenticated()
+                .and()
+                .apply(mySecurityConfigurerAdapter);
     }
 }
