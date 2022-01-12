@@ -39,11 +39,16 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .and()
                 .logout().permitAll()
                 .and()
+                //关闭原生的跨域，替换用创建的跨域
                 .cors().disable().addFilterBefore(corsFilter, UsernamePasswordAuthenticationFilter.class)
+                //异常的处理
                 .exceptionHandling()
+                // 权限不正确
                 .accessDeniedHandler(myAccessDeniedHandler)
+                // 没有令牌
                 .authenticationEntryPoint(myAuthenticationEntryPoint)
                 .and()
+                //支持csrf
                 .csrf()
                 .and()
                 .headers().frameOptions().sameOrigin()
